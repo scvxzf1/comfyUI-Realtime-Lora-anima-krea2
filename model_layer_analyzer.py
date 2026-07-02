@@ -219,6 +219,73 @@ def _detect_model_architecture(model_patcher) -> tuple:
             if len(layer_nums) >= 25:
                 return ('ZIMAGE', 'high', {'layers': sorted(layer_nums)})
 
+        # Krea 2 detection (28 main blocks + txtfusion modules)
+        if any('txtfusion.layerwise_blocks' in k or 'txtfusion.refiner_blocks' in k for k in keys):
+            krea_blocks = set()
+            txtfusion_layerwise = set()
+            txtfusion_refiner = set()
+            has_first = False
+            has_last = False
+            has_txtfusion_projector = False
+            for k in keys:
+                match = re.search(r'blocks\.(\d+)', k)
+                if match and 'txtfusion.' not in k:
+                    krea_blocks.add(int(match.group(1)))
+                match = re.search(r'txtfusion\.layerwise_blocks\.(\d+)', k)
+                if match:
+                    txtfusion_layerwise.add(int(match.group(1)))
+                match = re.search(r'txtfusion\.refiner_blocks\.(\d+)', k)
+                if match:
+                    txtfusion_refiner.add(int(match.group(1)))
+                if k.startswith('first.'):
+                    has_first = True
+                if k.startswith('last.'):
+                    has_last = True
+                if k.startswith('txtfusion.projector'):
+                    has_txtfusion_projector = True
+            if len(krea_blocks) >= 24 and (txtfusion_layerwise or txtfusion_refiner):
+                return (
+                    'KREA2',
+                    'high',
+                    {
+                        'blocks': sorted(krea_blocks),
+                        'txtfusion_layerwise': sorted(txtfusion_layerwise),
+                        'txtfusion_refiner': sorted(txtfusion_refiner),
+                        'has_first': has_first,
+                        'has_last': has_last,
+                        'has_txtfusion_projector': has_txtfusion_projector,
+                    },
+                )
+
+        # Anima Preview 3 Base detection (28 main blocks + optional llm adapter)
+        if any('blocks.' in k and 'adaln_modulation' in k.lower() for k in keys):
+            anima_blocks = set()
+            llm_adapter_blocks = set()
+            has_final_layer = False
+            has_x_embedder = False
+            for k in keys:
+                match = re.search(r'(?:net\.)?blocks\.(\d+)', k)
+                if match:
+                    anima_blocks.add(int(match.group(1)))
+                match = re.search(r'(?:net\.)?llm_adapter\.blocks\.(\d+)', k)
+                if match:
+                    llm_adapter_blocks.add(int(match.group(1)))
+                if 'final_layer' in k:
+                    has_final_layer = True
+                if 'x_embedder' in k:
+                    has_x_embedder = True
+            if len(anima_blocks) >= 24 and (has_final_layer or has_x_embedder or llm_adapter_blocks):
+                return (
+                    'ANIMA',
+                    'high',
+                    {
+                        'blocks': sorted(anima_blocks),
+                        'llm_adapter_blocks': sorted(llm_adapter_blocks),
+                        'has_final_layer': has_final_layer,
+                        'has_x_embedder': has_x_embedder,
+                    },
+                )
+
         # FLUX detection (double + single blocks)
         double_blocks = set()
         single_blocks = set()
@@ -339,6 +406,47 @@ def _extract_block_id(key: str, architecture: str) -> str:
             return f"layer_{match.group(1)}"
         if 'final_layer' in key_lower:
             return 'final_layer'
+        if 'x_embedder' in key_lower:
+            return 'x_embedder'
+        return 'other'
+
+    elif architecture == 'KREA2':
+        match = re.search(r'txtfusion\.layerwise_blocks\.(\d+)', key)
+        if match:
+            return f"txtfusion_layerwise_{match.group(1)}"
+        match = re.search(r'txtfusion\.refiner_blocks\.(\d+)', key)
+        if match:
+            return f"txtfusion_refiner_{match.group(1)}"
+        match = re.search(r'blocks\.(\d+)', key)
+        if match and 'txtfusion.' not in key:
+            return f"block_{match.group(1)}"
+        if key_lower.startswith('txtfusion.projector'):
+            return 'txtfusion_projector'
+        if key_lower.startswith('first.'):
+            return 'first'
+        if key_lower.startswith('last.'):
+            return 'last'
+        if key_lower.startswith('tmlp.'):
+            return 'tmlp'
+        if key_lower.startswith('tproj.'):
+            return 'tproj'
+        if key_lower.startswith('txtmlp.'):
+            return 'txtmlp'
+        return 'other'
+
+    elif architecture == 'ANIMA':
+        match = re.search(r'(?:net\.)?llm_adapter\.blocks\.(\d+)', key)
+        if match:
+            return f"llm_adapter_{match.group(1)}"
+        match = re.search(r'(?:net\.)?blocks\.(\d+)', key)
+        if match:
+            return f"block_{match.group(1)}"
+        if 'llm_adapter.embed' in key_lower or 'llm_adapter.norm' in key_lower or 'llm_adapter.out_proj' in key_lower:
+            return 'llm_adapter_io'
+        if 'final_layer' in key_lower:
+            return 'final_layer'
+        if 't_embedder' in key_lower or 't_embedding_norm' in key_lower:
+            return 't_embedder'
         if 'x_embedder' in key_lower:
             return 'x_embedder'
         return 'other'
@@ -675,18 +783,38 @@ def _format_analysis(block_analysis: dict, architecture: str,
         # Prefix for ordering
         if block_id.startswith('input'):
             return (0, num)
-        elif block_id.startswith('layer'):
-            return (1, num)
-        elif block_id.startswith('double'):
-            return (1, num)
-        elif block_id == 'mid':
-            return (2, 0)
-        elif block_id.startswith('output'):
-            return (3, num)
-        elif block_id.startswith('single'):
-            return (4, num)
         elif block_id.startswith('block'):
+            return (1, num)
+        elif block_id.startswith('txtfusion_layerwise_'):
+            return (2, num)
+        elif block_id.startswith('txtfusion_refiner_'):
+            return (3, num)
+        elif block_id.startswith('layer'):
+            return (4, num)
+        elif block_id.startswith('double'):
             return (5, num)
+        elif block_id.startswith('llm_adapter_') and block_id != 'llm_adapter_io':
+            return (6, num)
+        elif block_id == 'mid':
+            return (7, 0)
+        elif block_id.startswith('output'):
+            return (8, num)
+        elif block_id.startswith('single'):
+            return (9, num)
+        elif block_id in ('txtfusion_projector', 'first', 'last', 'tmlp', 'tproj', 'txtmlp', 'llm_adapter_io', 'final_layer', 't_embedder', 'x_embedder'):
+            special_order = {
+                'txtfusion_projector': 0,
+                'first': 1,
+                'last': 2,
+                'tmlp': 3,
+                'tproj': 4,
+                'txtmlp': 5,
+                'llm_adapter_io': 6,
+                'final_layer': 7,
+                't_embedder': 8,
+                'x_embedder': 9,
+            }
+            return (10, special_order[block_id])
         else:
             return (9, num)
 
@@ -833,6 +961,104 @@ Layer Guide:
             "Half Strength": {"enabled": "ALL", "strength": 0.5},
             "Late Only (20-29)": {"enabled": [f"layer_{i}" for i in range(20, 30)] + ["other"], "strength": 1.0},
             "Mid-Late (15-29)": {"enabled": [f"layer_{i}" for i in range(15, 30)] + ["other"], "strength": 1.0},
+            "Custom": None,
+        }
+    },
+    "ANIMA": {
+        "node_id": "AnimaModelLayerEditor",
+        "display_name": "Anima Model Layer Editor",
+        "description": """Per-block control of Anima Preview 3 Base model layers.
+
+Block Guide:
+- block_0-27: Main transformer backbone
+- llm_adapter_0-5: LLM adapter blocks
+- llm_adapter_io: Adapter embed, norm, and output projection
+- final_layer: Final projection head
+- t_embedder / x_embedder: Embedding paths""",
+        "architecture": "ANIMA",
+        "blocks": (
+            [f"block_{i}" for i in range(28)] +
+            [f"llm_adapter_{i}" for i in range(6)] +
+            ["llm_adapter_io", "final_layer", "t_embedder", "x_embedder", "other"]
+        ),
+        "block_labels": (
+            {f"block_{i}": f"Block {i}" for i in range(28)} |
+            {f"llm_adapter_{i}": f"LLM Adapter {i}" for i in range(6)} |
+            {
+                "llm_adapter_io": "LLM Adapter I/O",
+                "final_layer": "Final Layer",
+                "t_embedder": "T Embedder",
+                "x_embedder": "X Embedder",
+                "other": "Other Weights",
+            }
+        ),
+        "presets": {
+            "Default": {"enabled": "ALL", "strength": 1.0},
+            "All Off": {"enabled": [], "strength": 0.0},
+            "Half Strength": {"enabled": "ALL", "strength": 0.5},
+            "Main Blocks Only": {
+                "enabled": [f"block_{i}" for i in range(28)] + ["final_layer", "t_embedder", "x_embedder", "other"],
+                "strength": 1.0,
+            },
+            "LLM Adapter Only": {
+                "enabled": [f"llm_adapter_{i}" for i in range(6)] + ["llm_adapter_io", "other"],
+                "strength": 1.0,
+            },
+            "Late Main (20-27)": {
+                "enabled": [f"block_{i}" for i in range(20, 28)] + ["final_layer", "t_embedder", "x_embedder", "other"],
+                "strength": 1.0,
+            },
+            "Custom": None,
+        }
+    },
+    "KREA2": {
+        "node_id": "Krea2ModelLayerEditor",
+        "display_name": "Krea 2 Model Layer Editor",
+        "description": """Per-block control of Krea 2 model layers.
+
+Block Guide:
+- block_0-27: Main transformer backbone
+- txtfusion_layerwise_0-1: Text fusion layerwise blocks
+- txtfusion_refiner_0-1: Text fusion refiner blocks
+- txtfusion_projector: Text fusion projector
+- first / last / tmlp / tproj / txtmlp: Input-output and conditioning paths""",
+        "architecture": "KREA2",
+        "blocks": (
+            [f"block_{i}" for i in range(28)] +
+            [f"txtfusion_layerwise_{i}" for i in range(2)] +
+            [f"txtfusion_refiner_{i}" for i in range(2)] +
+            ["txtfusion_projector", "first", "last", "tmlp", "tproj", "txtmlp", "other"]
+        ),
+        "block_labels": (
+            {f"block_{i}": f"Block {i}" for i in range(28)} |
+            {f"txtfusion_layerwise_{i}": f"TextFusion Layerwise {i}" for i in range(2)} |
+            {f"txtfusion_refiner_{i}": f"TextFusion Refiner {i}" for i in range(2)} |
+            {
+                "txtfusion_projector": "TextFusion Projector",
+                "first": "First Layer",
+                "last": "Last Layer",
+                "tmlp": "Time MLP",
+                "tproj": "Time Projector",
+                "txtmlp": "Text MLP",
+                "other": "Other Weights",
+            }
+        ),
+        "presets": {
+            "Default": {"enabled": "ALL", "strength": 1.0},
+            "All Off": {"enabled": [], "strength": 0.0},
+            "Half Strength": {"enabled": "ALL", "strength": 0.5},
+            "Main Blocks Only": {
+                "enabled": [f"block_{i}" for i in range(28)] + ["first", "last", "tmlp", "tproj", "txtmlp", "other"],
+                "strength": 1.0,
+            },
+            "Text Fusion Only": {
+                "enabled": [f"txtfusion_layerwise_{i}" for i in range(2)] + [f"txtfusion_refiner_{i}" for i in range(2)] + ["txtfusion_projector", "txtmlp", "other"],
+                "strength": 1.0,
+            },
+            "Late Main (20-27)": {
+                "enabled": [f"block_{i}" for i in range(20, 28)] + ["first", "last", "tmlp", "tproj", "txtmlp", "other"],
+                "strength": 1.0,
+            },
             "Custom": None,
         }
     },

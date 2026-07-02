@@ -393,6 +393,10 @@ def _detect_from_metadata(metadata: dict) -> str:
     # Check modelspec.architecture (newer LoRAs)
     arch = metadata.get('modelspec.architecture', '').lower()
 
+    if 'krea' in arch:
+        return 'KREA2'
+    if 'anima' in arch or 'preview3' in arch:
+        return 'ANIMA'
     # Check for FLUX Klein variants first (before generic FLUX)
     if 'klein-4b' in arch or 'klein_4b' in arch:
         return 'FLUX_KLEIN_4B'
@@ -407,6 +411,10 @@ def _detect_from_metadata(metadata: dict) -> str:
 
     # Check ss_base_model_version (Kohya format)
     base_model = metadata.get('ss_base_model_version', '').lower()
+    if 'krea' in base_model:
+        return 'KREA2'
+    if 'anima' in base_model or 'preview3' in base_model:
+        return 'ANIMA'
     # Check Klein variants first
     if 'flux_2_klein_4b' in base_model or 'flux-2-klein-4b' in base_model:
         return 'FLUX_KLEIN_4B'
@@ -421,6 +429,10 @@ def _detect_from_metadata(metadata: dict) -> str:
 
     # Check ss_network_module (Kohya format)
     network_module = metadata.get('ss_network_module', '').lower()
+    if 'krea' in network_module:
+        return 'KREA2'
+    if 'anima' in network_module:
+        return 'ANIMA'
     if 'flux' in network_module:
         return 'FLUX'
     if 'zimage' in network_module or 'z_image' in network_module:
@@ -432,6 +444,10 @@ def _detect_from_metadata(metadata: dict) -> str:
 
     # Check ss_sd_model_name for hints
     model_name = metadata.get('ss_sd_model_name', '').lower()
+    if 'krea' in model_name:
+        return 'KREA2'
+    if 'anima' in model_name or 'preview3' in model_name:
+        return 'ANIMA'
     if 'flux' in model_name:
         return 'FLUX'
     if 'sdxl' in model_name or 'xl' in model_name:
@@ -445,6 +461,11 @@ def _detect_from_metadata(metadata: dict) -> str:
 def _count_unique_blocks(keys: list) -> dict:
     """Count unique block numbers for each potential architecture."""
     counts = {
+        'krea_blocks': set(),
+        'krea_txtfusion_layerwise': set(),
+        'krea_txtfusion_refiner': set(),
+        'anima_blocks': set(),
+        'anima_llm_adapter': set(),
         'zimage_layers': set(),
         'flux_double': set(),
         'flux_single': set(),
@@ -456,6 +477,34 @@ def _count_unique_blocks(keys: list) -> dict:
 
     for key in keys:
         key_lower = key.lower()
+
+        # Krea 2 blocks (0-27), txtfusion layerwise blocks (0-1), refiner blocks (0-1)
+        match = re.search(r'(?:diffusion_model\.)?blocks[._](\d+)', key_lower)
+        if match:
+            counts['krea_blocks'].add(int(match.group(1)))
+        match = re.search(r'(?:diffusion_model\.)?txtfusion\.layerwise_blocks[._](\d+)', key_lower)
+        if match:
+            counts['krea_txtfusion_layerwise'].add(int(match.group(1)))
+        match = re.search(r'(?:diffusion_model\.)?txtfusion\.refiner_blocks[._](\d+)', key_lower)
+        if match:
+            counts['krea_txtfusion_refiner'].add(int(match.group(1)))
+        match = re.search(r'lora_unet_blocks_(\d+)_', key_lower)
+        if match:
+            counts['krea_blocks'].add(int(match.group(1)))
+        match = re.search(r'lora_unet_txtfusion_layerwise_blocks_(\d+)_', key_lower)
+        if match:
+            counts['krea_txtfusion_layerwise'].add(int(match.group(1)))
+        match = re.search(r'lora_unet_txtfusion_refiner_blocks_(\d+)_', key_lower)
+        if match:
+            counts['krea_txtfusion_refiner'].add(int(match.group(1)))
+
+        # ANIMA blocks (0-27) and llm adapter blocks (0-5)
+        match = re.search(r'diffusion_model\.blocks\.(\d+)', key)
+        if match:
+            counts['anima_blocks'].add(int(match.group(1)))
+        match = re.search(r'diffusion_model\.llm_adapter\.blocks\.(\d+)', key)
+        if match:
+            counts['anima_llm_adapter'].add(int(match.group(1)))
 
         # Z-Image layers (0-29)
         match = re.search(r'diffusion_model\.layers\.(\d+)', key)
@@ -517,6 +566,8 @@ def _count_unique_blocks(keys: list) -> dict:
 def _score_architecture(keys: list, num_keys: int, block_counts: dict) -> dict:
     """Score each architecture based on multiple signals."""
     scores = {
+        'KREA2': 0,
+        'ANIMA': 0,
         'QWEN_IMAGE': 0,
         'FLUX': 0,
         'FLUX_KLEIN_4B': 0,
@@ -529,6 +580,36 @@ def _score_architecture(keys: list, num_keys: int, block_counts: dict) -> dict:
 
     keys_lower = [k.lower() for k in keys]
     keys_str = ' '.join(keys_lower)
+
+    # === KREA2 scoring ===
+    if any('txtfusion.layerwise_blocks' in k or 'txtfusion.refiner_blocks' in k for k in keys_lower):
+        scores['KREA2'] += 55
+    if any(('blocks.' in k or 'lora_unet_blocks_' in k) and any(x in k for x in ['attn.wk', 'attn.wq', 'attn.wv', 'mlp.down']) for k in keys_lower):
+        scores['KREA2'] += 20
+    if any('txtfusion.projector' in k or 'txtmlp' in k or 'tproj' in k or 'tmlp' in k for k in keys_lower):
+        scores['KREA2'] += 15
+    if block_counts['krea_blocks'] >= 24:
+        scores['KREA2'] += 20
+    if block_counts['krea_blocks'] == 28:
+        scores['KREA2'] += 10
+    if block_counts['krea_txtfusion_layerwise'] == 2:
+        scores['KREA2'] += 10
+    if block_counts['krea_txtfusion_refiner'] == 2:
+        scores['KREA2'] += 10
+
+    # === ANIMA scoring ===
+    if any('diffusion_model.blocks.' in k and any(x in k for x in ['self_attn', 'cross_attn', 'adaln_modulation']) for k in keys_lower):
+        scores['ANIMA'] += 50
+    if any('diffusion_model.llm_adapter.blocks.' in k for k in keys_lower):
+        scores['ANIMA'] += 35
+    if any('diffusion_model.final_layer' in k or 'diffusion_model.x_embedder' in k for k in keys_lower):
+        scores['ANIMA'] += 10
+    if block_counts['anima_blocks'] >= 24:
+        scores['ANIMA'] += 20
+    if block_counts['anima_blocks'] == 28:
+        scores['ANIMA'] += 15
+    if block_counts['anima_llm_adapter'] >= 4:
+        scores['ANIMA'] += 15
 
     # === QWEN_IMAGE scoring ===
     if any('transformer_blocks' in k and any(x in k for x in ['img_mlp', 'txt_mlp', 'img_mod', 'txt_mod']) for k in keys_lower):
@@ -632,6 +713,8 @@ def _score_architecture(keys: list, num_keys: int, block_counts: dict) -> dict:
         scores['SD15'] -= 30
     if scores['FLUX'] > 40:
         scores['SD15'] -= 30
+    if scores['ANIMA'] > 40:
+        scores['WAN'] -= 40
 
     return scores
 
@@ -704,7 +787,57 @@ def _extract_block_id_v2(key: str, architecture: str) -> str:
     """Extract block identifier from a LoRA/model weight key."""
     key_lower = key.lower()
 
-    if architecture == 'QWEN_IMAGE':
+    if architecture == 'KREA2':
+        match = re.search(r'(?:diffusion_model\.)?txtfusion\.layerwise_blocks[._](\d+)', key_lower)
+        if match:
+            return f"txtfusion_layerwise_{match.group(1)}"
+        match = re.search(r'(?:diffusion_model\.)?txtfusion\.refiner_blocks[._](\d+)', key_lower)
+        if match:
+            return f"txtfusion_refiner_{match.group(1)}"
+        match = re.search(r'(?:diffusion_model\.)?blocks[._](\d+)', key_lower)
+        if match:
+            return f"block_{match.group(1)}"
+        match = re.search(r'lora_unet_txtfusion_layerwise_blocks_(\d+)_', key_lower)
+        if match:
+            return f"txtfusion_layerwise_{match.group(1)}"
+        match = re.search(r'lora_unet_txtfusion_refiner_blocks_(\d+)_', key_lower)
+        if match:
+            return f"txtfusion_refiner_{match.group(1)}"
+        match = re.search(r'lora_unet_blocks_(\d+)_', key_lower)
+        if match:
+            return f"block_{match.group(1)}"
+        if 'txtfusion.projector' in key_lower or 'lora_unet_txtfusion_projector' in key_lower:
+            return 'txtfusion_projector'
+        if key_lower.startswith('diffusion_model.first.') or key_lower.startswith('first.') or 'lora_unet_first_' in key_lower:
+            return 'first'
+        if key_lower.startswith('diffusion_model.last.') or key_lower.startswith('last.') or 'lora_unet_last_' in key_lower:
+            return 'last'
+        if key_lower.startswith('diffusion_model.tmlp.') or key_lower.startswith('tmlp.') or 'lora_unet_tmlp_' in key_lower:
+            return 'tmlp'
+        if key_lower.startswith('diffusion_model.tproj.') or key_lower.startswith('tproj.') or 'lora_unet_tproj_' in key_lower:
+            return 'tproj'
+        if key_lower.startswith('diffusion_model.txtmlp.') or key_lower.startswith('txtmlp.') or 'lora_unet_txtmlp_' in key_lower:
+            return 'txtmlp'
+        return 'other'
+
+    elif architecture == 'ANIMA':
+        match = re.search(r'diffusion_model\.llm_adapter\.blocks\.(\d+)', key)
+        if match:
+            return f"llm_adapter_{match.group(1)}"
+        match = re.search(r'diffusion_model\.blocks\.(\d+)', key)
+        if match:
+            return f"block_{match.group(1)}"
+        if 'diffusion_model.llm_adapter.embed' in key_lower or 'diffusion_model.llm_adapter.norm' in key_lower or 'diffusion_model.llm_adapter.out_proj' in key_lower:
+            return 'llm_adapter_io'
+        if 'diffusion_model.final_layer' in key_lower:
+            return 'final_layer'
+        if 'diffusion_model.t_embedder' in key_lower or 'diffusion_model.t_embedding_norm' in key_lower:
+            return 't_embedder'
+        if 'diffusion_model.x_embedder' in key_lower:
+            return 'x_embedder'
+        return 'other'
+
+    elif architecture == 'QWEN_IMAGE':
         match = re.search(r'transformer_blocks[._](\d+)', key)
         return f"block_{match.group(1)}" if match else 'other'
 
@@ -1063,6 +1196,136 @@ class LoRALoaderWithAnalysisV2:
 # Adding a new architecture just requires adding a new config dict here.
 
 ARCH_CONFIGS = {
+    "KREA2": {
+        "node_id": "Krea2AnalyzerSelectiveLoaderV2",
+        "display_name": "Krea 2 Analyzer + Selective Loader V2",
+        "description": """Combined analyzer and selective loader for Krea 2 LoRAs.
+Analyzes block impact and allows per-block control with strength shaping.
+
+Block Guide:
+- block_0-27: Main transformer backbone
+- txtfusion_layerwise_0-1: Text fusion layerwise blocks
+- txtfusion_refiner_0-1: Text fusion refiner blocks
+- txtfusion_projector: Text fusion projector
+- first / last: Input and output projection paths
+- tmlp / tproj / txtmlp: Time and text conditioning MLP paths
+
+Supports strength scheduling format: 0:.2,.5:.8,1:1.0""",
+        "architecture": "KREA2",
+        "blocks": (
+            [f"block_{i}" for i in range(28)] +
+            [f"txtfusion_layerwise_{i}" for i in range(2)] +
+            [f"txtfusion_refiner_{i}" for i in range(2)] +
+            ["txtfusion_projector", "first", "last", "tmlp", "tproj", "txtmlp", "other_weights"]
+        ),
+        "block_labels": (
+            {f"block_{i}": f"Block {i}" for i in range(28)} |
+            {f"txtfusion_layerwise_{i}": f"TextFusion Layerwise {i}" for i in range(2)} |
+            {f"txtfusion_refiner_{i}": f"TextFusion Refiner {i}" for i in range(2)} |
+            {
+                "txtfusion_projector": "TextFusion Projector",
+                "first": "First Layer",
+                "last": "Last Layer",
+                "tmlp": "Time MLP",
+                "tproj": "Time Projector",
+                "txtmlp": "Text MLP",
+                "other_weights": "Other Weights",
+            }
+        ),
+        "presets": {
+            "Default": {"enabled": "ALL", "strength": 1.0},
+            "All Off": {"enabled": [], "strength": 0.0},
+            "Half Strength": {"enabled": "ALL", "strength": 0.5},
+            "Main Blocks Only": {
+                "enabled": [f"block_{i}" for i in range(28)] + ["first", "last", "tmlp", "tproj", "txtmlp", "other_weights"],
+                "strength": 1.0,
+            },
+            "Text Fusion Only": {
+                "enabled": [f"txtfusion_layerwise_{i}" for i in range(2)] + [f"txtfusion_refiner_{i}" for i in range(2)] + ["txtfusion_projector", "txtmlp", "other_weights"],
+                "strength": 1.0,
+            },
+            "Layerwise Fusion Only": {
+                "enabled": [f"txtfusion_layerwise_{i}" for i in range(2)] + ["txtfusion_projector"],
+                "strength": 1.0,
+            },
+            "Refiner Fusion Only": {
+                "enabled": [f"txtfusion_refiner_{i}" for i in range(2)] + ["txtfusion_projector"],
+                "strength": 1.0,
+            },
+            "Late Main (20-27)": {
+                "enabled": [f"block_{i}" for i in range(20, 28)] + ["first", "last", "tmlp", "tproj", "txtmlp", "other_weights"],
+                "strength": 1.0,
+            },
+            "Mid-Late Main (14-27)": {
+                "enabled": [f"block_{i}" for i in range(14, 28)] + ["first", "last", "tmlp", "tproj", "txtmlp", "other_weights"],
+                "strength": 1.0,
+            },
+            "Custom": None,
+        },
+    },
+    "ANIMA": {
+        "node_id": "AnimaAnalyzerSelectiveLoaderV2",
+        "display_name": "Anima Analyzer + Selective Loader V2",
+        "description": """Combined analyzer and selective loader for Anima Preview 3 Base LoRAs.
+Analyzes block impact and allows per-block control with strength shaping.
+
+Block Guide (39 controls):
+- block_0-27: Main transformer backbone
+- llm_adapter_0-5: LLM adapter blocks
+- llm_adapter_io: Adapter embed/norm/output projection
+- final_layer: Final projection head
+- t_embedder: Time embedding path
+- x_embedder: Input embedder
+
+Supports strength scheduling format: 0:.2,.5:.8,1:1.0""",
+        "architecture": "ANIMA",
+        "blocks": (
+            [f"block_{i}" for i in range(28)] +
+            [f"llm_adapter_{i}" for i in range(6)] +
+            ["llm_adapter_io", "final_layer", "t_embedder", "x_embedder", "other_weights"]
+        ),
+        "block_labels": (
+            {f"block_{i}": f"Block {i}" for i in range(28)} |
+            {f"llm_adapter_{i}": f"LLM Adapter {i}" for i in range(6)} |
+            {
+                "llm_adapter_io": "LLM Adapter I/O",
+                "final_layer": "Final Layer",
+                "t_embedder": "T Embedder",
+                "x_embedder": "X Embedder",
+                "other_weights": "Other Weights",
+            }
+        ),
+        "presets": {
+            "Default": {"enabled": "ALL", "strength": 1.0},
+            "All Off": {"enabled": [], "strength": 0.0},
+            "Half Strength": {"enabled": "ALL", "strength": 0.5},
+            "Main Blocks Only": {
+                "enabled": [f"block_{i}" for i in range(28)] + ["final_layer", "t_embedder", "x_embedder", "other_weights"],
+                "strength": 1.0,
+            },
+            "LLM Adapter Only": {
+                "enabled": [f"llm_adapter_{i}" for i in range(6)] + ["llm_adapter_io", "other_weights"],
+                "strength": 1.0,
+            },
+            "Late Main (20-27)": {
+                "enabled": [f"block_{i}" for i in range(20, 28)] + ["final_layer", "t_embedder", "x_embedder", "other_weights"],
+                "strength": 1.0,
+            },
+            "Mid-Late Main (14-27)": {
+                "enabled": [f"block_{i}" for i in range(14, 28)] + ["final_layer", "t_embedder", "x_embedder", "other_weights"],
+                "strength": 1.0,
+            },
+            "Evens Only": {
+                "enabled": [f"block_{i}" for i in range(0, 28, 2)] + [f"llm_adapter_{i}" for i in range(0, 6, 2)],
+                "strength": 1.0,
+            },
+            "Odds Only": {
+                "enabled": [f"block_{i}" for i in range(1, 28, 2)] + [f"llm_adapter_{i}" for i in range(1, 6, 2)],
+                "strength": 1.0,
+            },
+            "Custom": None,
+        },
+    },
     "ZIMAGE": {
         "node_id": "ZImageAnalyzerSelectiveLoaderV2",
         "display_name": "Z-Image Analyzer + Selective Loader V2",

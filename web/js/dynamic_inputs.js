@@ -308,6 +308,89 @@ const SELECTIVE_LOADER_PRESETS = {
         }
     },
     // V2 Combined Analyzer + Selective Loaders
+    "Krea2AnalyzerSelectiveLoaderV2": {
+        blocks: [
+            ...Array.from({length: 28}, (_, i) => `block_${i}`),
+            ...Array.from({length: 2}, (_, i) => `txtfusion_layerwise_${i}`),
+            ...Array.from({length: 2}, (_, i) => `txtfusion_refiner_${i}`),
+            "txtfusion_projector",
+            "first",
+            "last",
+            "tmlp",
+            "tproj",
+            "txtmlp",
+            "other_weights"
+        ],
+        presets: {
+            "Default": { enabled: "ALL", strength: 1.0 },
+            "All Off": { enabled: [], strength: 0.0 },
+            "Half Strength": { enabled: "ALL", strength: 0.5 },
+            "Main Blocks Only": {
+                enabled: [...Array.from({length: 28}, (_, i) => `block_${i}`), "first", "last", "tmlp", "tproj", "txtmlp", "other_weights"],
+                strength: 1.0
+            },
+            "Text Fusion Only": {
+                enabled: [...Array.from({length: 2}, (_, i) => `txtfusion_layerwise_${i}`), ...Array.from({length: 2}, (_, i) => `txtfusion_refiner_${i}`), "txtfusion_projector", "txtmlp", "other_weights"],
+                strength: 1.0
+            },
+            "Layerwise Fusion Only": {
+                enabled: [...Array.from({length: 2}, (_, i) => `txtfusion_layerwise_${i}`), "txtfusion_projector"],
+                strength: 1.0
+            },
+            "Refiner Fusion Only": {
+                enabled: [...Array.from({length: 2}, (_, i) => `txtfusion_refiner_${i}`), "txtfusion_projector"],
+                strength: 1.0
+            },
+            "Late Main (20-27)": {
+                enabled: [...Array.from({length: 8}, (_, i) => `block_${i + 20}`), "first", "last", "tmlp", "tproj", "txtmlp", "other_weights"],
+                strength: 1.0
+            },
+            "Mid-Late Main (14-27)": {
+                enabled: [...Array.from({length: 14}, (_, i) => `block_${i + 14}`), "first", "last", "tmlp", "tproj", "txtmlp", "other_weights"],
+                strength: 1.0
+            },
+        }
+    },
+    "AnimaAnalyzerSelectiveLoaderV2": {
+        blocks: [
+            ...Array.from({length: 28}, (_, i) => `block_${i}`),
+            ...Array.from({length: 6}, (_, i) => `llm_adapter_${i}`),
+            "llm_adapter_io",
+            "final_layer",
+            "t_embedder",
+            "x_embedder",
+            "other_weights"
+        ],
+        presets: {
+            "Default": { enabled: "ALL", strength: 1.0 },
+            "All Off": { enabled: [], strength: 0.0 },
+            "Half Strength": { enabled: "ALL", strength: 0.5 },
+            "Main Blocks Only": {
+                enabled: [...Array.from({length: 28}, (_, i) => `block_${i}`), "final_layer", "t_embedder", "x_embedder", "other_weights"],
+                strength: 1.0
+            },
+            "LLM Adapter Only": {
+                enabled: [...Array.from({length: 6}, (_, i) => `llm_adapter_${i}`), "llm_adapter_io", "other_weights"],
+                strength: 1.0
+            },
+            "Late Main (20-27)": {
+                enabled: [...Array.from({length: 8}, (_, i) => `block_${i + 20}`), "final_layer", "t_embedder", "x_embedder", "other_weights"],
+                strength: 1.0
+            },
+            "Mid-Late Main (14-27)": {
+                enabled: [...Array.from({length: 14}, (_, i) => `block_${i + 14}`), "final_layer", "t_embedder", "x_embedder", "other_weights"],
+                strength: 1.0
+            },
+            "Evens Only": {
+                enabled: [...Array.from({length: 14}, (_, i) => `block_${i * 2}`), ...Array.from({length: 3}, (_, i) => `llm_adapter_${i * 2}`)],
+                strength: 1.0
+            },
+            "Odds Only": {
+                enabled: [...Array.from({length: 14}, (_, i) => `block_${i * 2 + 1}`), ...Array.from({length: 3}, (_, i) => `llm_adapter_${i * 2 + 1}`)],
+                strength: 1.0
+            },
+        }
+    },
     "ZImageAnalyzerSelectiveLoaderV2": {
         blocks: [...Array.from({length: 30}, (_, i) => `layer_${i}`), "context_refiner", "noise_refiner", "final_layer", "x_embedder", "other_weights"],
         presets: {
@@ -501,6 +584,67 @@ const SELECTIVE_LOADER_PRESETS = {
             "Late Only (45-59)": { enabled: [...Array.from({length: 15}, (_, i) => `block_${i + 45}`), "other"], strength: 1.0 },
             "Custom": { enabled: "ALL", strength: 1.0 },
         }
+    },
+    "Krea2ModelLayerEditor": {
+        blocks: [
+            ...Array.from({length: 28}, (_, i) => `block_${i}`),
+            ...Array.from({length: 2}, (_, i) => `txtfusion_layerwise_${i}`),
+            ...Array.from({length: 2}, (_, i) => `txtfusion_refiner_${i}`),
+            "txtfusion_projector",
+            "first",
+            "last",
+            "tmlp",
+            "tproj",
+            "txtmlp",
+            "other"
+        ],
+        presets: {
+            "Default": { enabled: "ALL", strength: 1.0 },
+            "All Off": { enabled: [], strength: 0.0 },
+            "Half Strength": { enabled: "ALL", strength: 0.5 },
+            "Main Blocks Only": {
+                enabled: [...Array.from({length: 28}, (_, i) => `block_${i}`), "first", "last", "tmlp", "tproj", "txtmlp", "other"],
+                strength: 1.0
+            },
+            "Text Fusion Only": {
+                enabled: [...Array.from({length: 2}, (_, i) => `txtfusion_layerwise_${i}`), ...Array.from({length: 2}, (_, i) => `txtfusion_refiner_${i}`), "txtfusion_projector", "txtmlp", "other"],
+                strength: 1.0
+            },
+            "Late Main (20-27)": {
+                enabled: [...Array.from({length: 8}, (_, i) => `block_${i + 20}`), "first", "last", "tmlp", "tproj", "txtmlp", "other"],
+                strength: 1.0
+            },
+            "Custom": { enabled: "ALL", strength: 1.0 },
+        }
+    },
+    "AnimaModelLayerEditor": {
+        blocks: [
+            ...Array.from({length: 28}, (_, i) => `block_${i}`),
+            ...Array.from({length: 6}, (_, i) => `llm_adapter_${i}`),
+            "llm_adapter_io",
+            "final_layer",
+            "t_embedder",
+            "x_embedder",
+            "other"
+        ],
+        presets: {
+            "Default": { enabled: "ALL", strength: 1.0 },
+            "All Off": { enabled: [], strength: 0.0 },
+            "Half Strength": { enabled: "ALL", strength: 0.5 },
+            "Main Blocks Only": {
+                enabled: [...Array.from({length: 28}, (_, i) => `block_${i}`), "final_layer", "t_embedder", "x_embedder", "other"],
+                strength: 1.0
+            },
+            "LLM Adapter Only": {
+                enabled: [...Array.from({length: 6}, (_, i) => `llm_adapter_${i}`), "llm_adapter_io", "other"],
+                strength: 1.0
+            },
+            "Late Main (20-27)": {
+                enabled: [...Array.from({length: 8}, (_, i) => `block_${i + 20}`), "final_layer", "t_embedder", "x_embedder", "other"],
+                strength: 1.0
+            },
+            "Custom": { enabled: "ALL", strength: 1.0 },
+        }
     }
 };
 
@@ -517,6 +661,8 @@ app.registerExtension({
             "WanSelectiveLoRALoader",
             "QwenSelectiveLoRALoader",
             // V2 Combined Analyzer + Selective Loaders
+            "Krea2AnalyzerSelectiveLoaderV2",
+            "AnimaAnalyzerSelectiveLoaderV2",
             "ZImageAnalyzerSelectiveLoaderV2",
             "SDXLAnalyzerSelectiveLoaderV2",
             "FLUXAnalyzerSelectiveLoaderV2",
@@ -530,7 +676,9 @@ app.registerExtension({
             "FLUXModelLayerEditor",
             "ZImageModelLayerEditor",
             "WanModelLayerEditor",
-            "QwenModelLayerEditor"
+            "QwenModelLayerEditor",
+            "Krea2ModelLayerEditor",
+            "AnimaModelLayerEditor"
         ];
 
         if (!selectiveLoaders.includes(nodeData.name)) {

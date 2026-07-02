@@ -3,7 +3,7 @@
 [![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-Support-yellow.svg)](https://buymeacoffee.com/lorasandlenses)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-**Train**, **analyze**, **selectively load by block**, and **edit base models** for **SDXL, SD 1.5, FLUX, Z-Image, Qwen Image, Qwen Image Edit, and Wan 2.2** directly inside ComfyUI. One unified interface across three training backends, plus powerful analysis, block-level loading, strength scheduling, and model editing tools.
+**Train**, **analyze**, **selectively load by block**, and **edit base models** for **SDXL, SD 1.5, FLUX, Z-Image, Qwen Image, Qwen Image Edit, and Wan 2.2**, plus **extra analyzer/editor support for Anima Preview 3 Base and Krea 2**, directly inside ComfyUI. One unified interface across three training backends, plus powerful analysis, block-level loading, strength scheduling, and model editing tools.
 
 > **Version 2 Now Available:** Combined analyzer + selective loader nodes with strength scheduling and LoRA saving!
 >
@@ -17,15 +17,24 @@
 | **Musubi Tuner** | Z-Image, Z-Image Base, FLUX Klein 4B/9B, Qwen Image, Qwen Image Edit, Wan 2.2 | Cutting-edge models, smaller LoRAs, excellent VRAM efficiency |
 | **AI-Toolkit** | FLUX.1-dev, Z-Image, Wan 2.2 alternative training pipeline |
 
-**8 architectures. 3 training backends. 34 nodes total. **
+**10 architectures. 3 training backends. 39 nodes total. **
 
 - 10 trainer nodes
-- 13 selective loaders (5 V1 + 8 V2 combined)
+- 15 selective loaders (5 V1 + 10 V2 combined)
 - 2 analyzers (V1 + V2)
-- 6 model layer editors
+- 8 model layer editors
 - 4 utility nodes
 
 ## What's New
+
+### Extra Model Support: Anima Preview 3 Base & Krea 2
+
+This fork adds extra block-aware analysis and base-model editing support for:
+
+- **Anima Preview 3 Base** - dedicated V2 analyzer/selective loader and model layer editor
+- **Krea 2** - dedicated V2 analyzer/selective loader and model layer editor
+
+Both architectures get their own block maps and presets instead of being forced through older node definitions.
 
 ### Model Diff to LoRA (LoRA Extraction & Merging)
 
@@ -36,7 +45,7 @@ Extract the combined effect of multiple LoRAs into a single distributable file:
 - **Selective Baking** - Use V2 Analyzers to disable certain layers, then extract only the effects you want
 
 **Features:**
-- Works with all architectures (FLUX, FLUX Klein, Z-Image, SDXL, SD 1.5, Wan, Qwen)
+- Works with all architectures (FLUX, FLUX Klein, Z-Image, SDXL, SD 1.5, Wan, Qwen, Anima, Krea 2)
 - Configurable output rank (4-256) - higher = more accurate, larger file
 - GPU-accelerated SVD decomposition for fast extraction
 - Progress bar in ComfyUI UI and console
@@ -86,7 +95,7 @@ The V2 nodes combine analysis and selective loading into a single node, with pow
 
 Scale individual blocks of your **base model** before applying LoRAs:
 
-- 6 nodes covering all architectures (SDXL, SD 1.5, FLUX, Z-Image, Wan, Qwen)
+- 8 nodes covering all architectures (SDXL, SD 1.5, FLUX, Z-Image, Wan, Qwen, Anima, Krea 2)
 - Presets for common adjustments
 - User preset system (save/delete your own configurations)
 - Save modified models to disk
@@ -247,6 +256,8 @@ These combine analysis and selective loading in one node, with strength scheduli
 - **FLUX Analyzer + Selective Loader V2** - 57 blocks with strength scheduling
 - **Wan Analyzer + Selective Loader V2** - 40 blocks with strength scheduling
 - **Qwen Analyzer + Selective Loader V2** - 60 blocks with strength scheduling
+- **Anima Analyzer + Selective Loader V2** - 28 main blocks + adapter/final/embedder controls
+- **Krea 2 Analyzer + Selective Loader V2** - 28 main blocks + txtfusion/conditioning controls
 - **FLUX Klein 4B Analyzer + Selective Loader V2** - 25 blocks (5 double + 20 single) with strength scheduling
 - **FLUX Klein 9B Analyzer + Selective Loader V2** - 32 blocks (8 double + 24 single) with strength scheduling
 - **LoRA Loader + Analyzer V2** - Basic V2 analyzer without selective loading
@@ -261,6 +272,8 @@ Scale individual blocks of your base model before LoRA application:
 - **Z-Image Model Layer Editor**
 - **Wan Model Layer Editor**
 - **Qwen Model Layer Editor**
+- **Anima Model Layer Editor**
+- **Krea 2 Model Layer Editor**
 
   ---
 
@@ -371,7 +384,7 @@ There are critical example workflows with useful info included in the custom_nod
 
 Workflows are included in the `workflows/` folder, organized by category.
 
-> **Note:** Many examples use Z-Image, but equivalent nodes exist for all architectures (SDXL, SD 1.5, FLUX, Wan, Qwen). Just search for the same node name with your architecture - e.g., "SDXL Analyzer + Selective Loader V2" or "FLUX Model Layer Editor".
+> **Note:** Many examples use Z-Image, but equivalent nodes exist for all architectures (SDXL, SD 1.5, FLUX, Wan, Qwen, Anima, Krea 2). Just search for the same node name with your architecture - e.g., "SDXL Analyzer + Selective Loader V2" or "FLUX Model Layer Editor".
 
 **Training Workflows** (`workflows/Training/`):
 - `SDXLDemo-SDSCRIPTS.json` - SDXL training demo
@@ -506,7 +519,7 @@ The node calculates the difference between these two models and saves it as a ne
 - **Selective Baking** - Use V2 Analyzers to disable certain layers before extraction, creating a LoRA with only the effects you want
 
 **Features:**
-- Works with all architectures (FLUX, FLUX Klein 4B/9B, Z-Image, SDXL, SD 1.5, Wan, Qwen)
+- Works with all architectures (FLUX, FLUX Klein 4B/9B, Z-Image, SDXL, SD 1.5, Wan, Qwen, Anima, Krea 2)
 - GPU-accelerated SVD for fast extraction
 - Progress bar in ComfyUI UI and console
 - Auto-disables after successful save to prevent accidental re-runs
