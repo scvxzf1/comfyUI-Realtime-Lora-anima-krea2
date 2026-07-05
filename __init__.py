@@ -20,6 +20,7 @@ from .lora_analyzer import LoRALoaderWithAnalysis
 from .lora_analyzer_v2 import NODE_CLASS_MAPPINGS as V2_NODE_CLASS_MAPPINGS, NODE_DISPLAY_NAME_MAPPINGS as V2_NODE_DISPLAY_NAME_MAPPINGS
 from .selective_lora_loader import SDXLSelectiveLoRALoader, ZImageSelectiveLoRALoader, FLUXSelectiveLoRALoader, WanSelectiveLoRALoader, QwenSelectiveLoRALoader
 from .scheduled_lora_loader import ScheduledLoRALoader
+from .anima_lokr_loader import AnimaLoKrLoader
 from .clipboard_image_loader import ClippyRebornImageLoader
 from .image_of_day import ImageOfDayLoader
 from .model_layer_analyzer import NODE_CLASS_MAPPINGS as MODEL_LAYER_NODE_CLASS_MAPPINGS, NODE_DISPLAY_NAME_MAPPINGS as MODEL_LAYER_NODE_DISPLAY_NAME_MAPPINGS
@@ -60,6 +61,7 @@ NODE_CLASS_MAPPINGS = {
     "WanSelectiveLoRALoader": WanSelectiveLoRALoader,
     "QwenSelectiveLoRALoader": QwenSelectiveLoRALoader,
     "ScheduledLoRALoader": ScheduledLoRALoader,
+    "AnimaLoKrLoader": AnimaLoKrLoader,
     "ClippyRebornImageLoader": ClippyRebornImageLoader,
     "ImageOfDayLoader": ImageOfDayLoader,
 }
@@ -82,6 +84,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "WanSelectiveLoRALoader": "Selective LoRA Loader (Wan)",
     "QwenSelectiveLoRALoader": "Selective LoRA Loader (Qwen)",
     "ScheduledLoRALoader": "LoRA Loader (Scheduled)",
+    "AnimaLoKrLoader": "Anima LoKr Loader",
     "ClippyRebornImageLoader": "Clippy Reloaded (Load Image from Clipboard)",
     "ImageOfDayLoader": "Image of the Day",
 }
